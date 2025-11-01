@@ -41,6 +41,9 @@ web_address: "127.0.0.1:8081"
 # If not specified, defaults to "sessions.db" in the current directory.
 # This makes user sessions persistent across gateway restarts.
 session_db_path: "sessions.db"
+# FTL error: key must be 32 or 64 bytes (got 40).  
+# Fix: generate a new key with `openssl rand -hex 32` or `openssl rand -hex 64` and update your config.
+session_secret_key: "abdec9cc8cacb5ac87f7de5eb6696a5f4a33d36ad28b190e016abf020060db8d"
 
 # -----------------------------------------------------------------------------
 # TLS Configuration - CHOOSE ONE METHOD (ACME or Self-Signed)
