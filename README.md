@@ -56,4 +56,4 @@ The proxy gateway provides a web-based user interface for configuration.
 
 ## Releases
 
-Pre-built binaries for Linux, Windows, and macOS are available on the [GitHub Releases](https://github.com/vidhun/proxy-gateway/releases) page.
+Pre-built binaries for Linux, Windows, and macOS are available on the [GitHub Releases](https://github.com/v1dhun/proxy-gateway/releases) page.
