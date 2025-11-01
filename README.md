@@ -48,8 +48,6 @@ The proxy server is configured using a YAML file. An example configuration file 
 *   `oidc`: Configuration for OpenID Connect (OIDC) authentication for the web UI.
 *   `groups`: Definitions of client groups for use in policies.
 
-For a detailed explanation of all configuration options, please refer to the comments in the `config.yaml` file.
-
 ## Web GUI
 
 The proxy gateway provides a web-based user interface for configuration.
