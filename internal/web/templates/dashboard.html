@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proxy Gateway Dashboard</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Proxy Gateway</a>
+            <div class="d-flex">
+                 <form action="/config/save" method="POST" class="me-2">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{ .CSRFToken }}">
+                    <button type="submit" class="btn btn-success">Save Configuration</button>
+                </form>
+                {{if .Config.OIDC.Enabled}}
+                <form action="/logout" method="POST">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{ .CSRFToken }}">
+                    <button type="submit" class="btn btn-outline-secondary">Logout</button>
+                </form>
+                {{end}}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Client Groups Section -->
+        <div class="card mb-4 border-secondary">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Client Groups</h4>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addGroupModal">Add Group</button>
+            </div>
+            <div class="card-body">
+                <table class="table table-dark table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Client IPs</th>
+                            <th>Client Hosts</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{range .Config.Groups}}
+                        <tr>
+                            <td>{{.Name}}</td>
+                            <td>{{range .ClientIPs}}<span class="badge bg-secondary me-1">{{.}}</span>{{end}}</td>
+                            <td>{{range .ClientHosts}}<span class="badge bg-info text-dark me-1">{{.}}</span>{{end}}</td>
+                            <td class="text-end">
+                                <button class="btn btn-warning btn-sm me-1" data-bs-toggle="modal" data-bs-target="#editGroupModal-{{safeID .Name}}">Edit</button>
+                                <form action="/group/delete" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete group \'{{.Name}}\'?');">
+                                    <input type="hidden" name="gorilla.csrf.Token" value="{{ $.CSRFToken }}">
+                                    <input type="hidden" name="name" value="{{.Name}}">
+                                    <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Proxies Section -->
+        <div class="card border-secondary">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Proxies</h4>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProxyModal">Add Proxy</button>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="proxyAccordion">
+                    {{range $proxy := .Config.Proxies}}
+                    <div class="accordion-item bg-dark border-secondary">
+                        <h2 class="accordion-header" id="heading-{{safeID $proxy.Name}}">
+                            <button class="accordion-button collapsed bg-dark text-white" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{safeID $proxy.Name}}">
+                                <strong>{{$proxy.Name}}</strong>&nbsp;
+                                <span class="badge bg-{{if $proxy.Enabled}}success{{else}}secondary{{end}} me-2 ms-2">{{if $proxy.Enabled}}Enabled{{else}}Disabled{{end}}</span>
+                                <span class="text-muted small ms-2">(Type: {{$proxy.Type}}, Listen: {{$proxy.ListenAddress}})</span>
+                            </button>
+                        </h2>
+                        <div id="collapse-{{safeID $proxy.Name}}" class="accordion-collapse collapse" data-bs-parent="#proxyAccordion">
+                            <div class="accordion-body">
+                                <div class="d-flex justify-content-end mb-3 border-bottom border-secondary pb-3">
+                                    <form action="/proxy/toggle" method="POST" class="me-2">
+                                        <input type="hidden" name="gorilla.csrf.Token" value="{{ $.CSRFToken }}">
+                                        <input type="hidden" name="name" value="{{$proxy.Name}}">
+                                        {{if $proxy.Enabled}}
+                                        <button type="submit" class="btn btn-secondary">Disable Proxy</button>
+                                        {{else}}
+                                        <button type="submit" class="btn btn-success">Enable Proxy</button>
+                                        {{end}}
+                                    </form>
+                                    <button class="btn btn-warning me-2" data-bs-toggle="modal" data-bs-target="#editProxyModal-{{safeID $proxy.Name}}">Edit Proxy</button>
+                                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPolicyModal-{{safeID $proxy.Name}}">Add Policy</button>
+                                </div>
+
+                                <!-- Tab Navigation -->
+                                <ul class="nav nav-tabs" id="proxyTabs-{{safeID $proxy.Name}}" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active" id="policies-tab-{{safeID $proxy.Name}}" data-bs-toggle="tab" data-bs-target="#policies-pane-{{safeID $proxy.Name}}" type="button" role="tab">Policies</button>
+                                    </li>
+                                    {{if or (eq $proxy.Type "http") (eq $proxy.Type "socks5")}}
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="auth-tab-{{safeID $proxy.Name}}" data-bs-toggle="tab" data-bs-target="#auth-pane-{{safeID $proxy.Name}}" type="button" role="tab">Authentication</button>
+                                    </li>
+                                    {{end}}
+                                </ul>
+
+                                <!-- Tab Content -->
+                                <div class="tab-content" id="proxyTabsContent-{{safeID $proxy.Name}}">
+                                    <!-- Policies Pane -->
+                                    <div class="tab-pane fade show active p-3" id="policies-pane-{{safeID $proxy.Name}}" role="tabpanel">
+                                        <table class="table table-dark table-bordered table-hover align-middle">
+                                             <thead><tr><th>Name</th><th>Action</th><th class="text-end">Actions</th></tr></thead>
+                                            <tbody>
+                                                {{range $policy := $proxy.Policies}}
+                                                <tr>
+                                                    <td>
+                                                        {{$policy.Name}}
+                                                        <br>
+                                                        <span class="badge bg-{{if $policy.Disabled}}secondary{{else}}success{{end}}">{{if $policy.Disabled}}Disabled{{else}}Enabled{{end}}</span>
+                                                    </td>
+                                                    <td><span class="badge fs-6 bg-{{if eq $policy.Action "allow"}}success{{else}}danger{{end}}">{{$policy.Action}}</span></td>
+                                                    <td class="text-end">
+                                                        <form action="/policy/toggle" method="POST" class="d-inline me-1">
+                                                            <input type="hidden" name="gorilla.csrf.Token" value="{{ $.CSRFToken }}">
+                                                            <input type="hidden" name="proxy_name" value="{{$proxy.Name}}">
+                                                            <input type="hidden" name="policy_name" value="{{$policy.Name}}">
+                                                            {{if $policy.Disabled}}
+                                                                <button type="submit" class="btn btn-success btn-sm">Enable</button>
+                                                            {{else}}
+                                                                <button type="submit" class="btn btn-secondary btn-sm">Disable</button>
+                                                            {{end}}
+                                                        </form>
+                                                        <button class="btn btn-warning btn-sm me-1" data-bs-toggle="modal" data-bs-target="#editPolicyModal-{{safeID $proxy.Name}}-{{safeID $policy.Name}}">Edit</button>
+                                                        <form action="/policy/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete policy \'{{$policy.Name}}\'?');">
+                                                            <input type="hidden" name="gorilla.csrf.Token" value="{{ $.CSRFToken }}">
+                                                            <input type="hidden" name="proxy_name" value="{{$proxy.Name}}">
+                                                            <input type="hidden" name="policy_name" value="{{$policy.Name}}">
+                                                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                                {{end}}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <!-- Authentication Pane -->
+                                    {{if or (eq $proxy.Type "http") (eq $proxy.Type "socks5")}}
+                                    <div class="tab-pane fade p-3" id="auth-pane-{{safeID $proxy.Name}}" role="tabpanel">
+                                        {{if $proxy.Auth.Users}}
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <div>
+                                                <strong>Authentication Status:</strong>
+                                                <span class="badge fs-6 bg-{{if $proxy.Auth.Enabled}}success{{else}}secondary{{end}}">
+                                                    {{if $proxy.Auth.Enabled}}Enabled{{else}}Disabled{{end}}
+                                                </span>
+                                            </div>
+                                            <form action="/proxy/auth/toggle" method="POST">
+                                                <input type="hidden" name="gorilla.csrf.Token" value="{{ $.CSRFToken }}">
+                                                <input type="hidden" name="proxy_name" value="{{$proxy.Name}}">
+                                                {{if $proxy.Auth.Enabled}}
+                                                <button type="submit" class="btn btn-secondary">Disable Authentication</button>
+                                                {{else}}
+                                                <button type="submit" class="btn btn-success">Enable Authentication</button>
+                                                {{end}}
+                                            </form>
+                                        </div>
+                                        <hr>
+                                        {{end}}
+                                        <table class="table table-dark table-bordered table-hover align-middle">
+                                            <thead><tr><th>Username</th><th class="text-end">Actions</th></tr></thead>
+                                            <tbody>
+                                                {{range $user := $proxy.Auth.Users}}
+                                                <tr>
+                                                    <td>{{$user.Username}}</td>
+                                                    <td class="text-end">
+                                                        <form action="/auth/user/delete" method="POST" class="d-inline" onsubmit="return confirm('Delete user \'{{$user.Username}}\'?');">
+                                                            <input type="hidden" name="gorilla.csrf.Token" value="{{ $.CSRFToken }}">
+                                                            <input type="hidden" name="proxy_name" value="{{$proxy.Name}}">
+                                                            <input type="hidden" name="username" value="{{$user.Username}}">
+                                                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                                {{end}}
+                                            </tbody>
+                                        </table>
+                                        <button class="btn btn-primary mt-2" data-bs-toggle="modal" data-bs-target="#addUserModal-{{safeID $proxy.Name}}">Add User</button>
+                                    </div>
+                                    {{end}}
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals are defined below -->
+    {{template "groupModals" .}}
+    {{template "proxyModals" .}}
+    {{template "policyModals" .}}
+    {{template "authModals" .}}
+
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+</body>
+
+{{define "groupModals"}}
+    {{$csrf := .CSRFToken}}
+    <!-- Add Group Modal -->
+    <div class="modal fade" id="addGroupModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+        <form action="/group/add" method="POST">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{$csrf}}">
+            <div class="modal-header"><h5 class="modal-title">Add New Group</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-3"><label class="form-label">Group Name</label><input type="text" name="name" class="form-control" required></div>
+                <div class="mb-3"><label class="form-label">Client IPs (comma-separated)</label><input type="text" name="client_ips" class="form-control" placeholder="e.g., 192.168.1.100/32"></div>
+                <div class="mb-3"><label class="form-label">Client Hosts (comma-separated)</label><input type="text" name="client_hosts" class="form-control" placeholder="e.g., my-laptop.local"></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Add Group</button></div>
+        </form>
+    </div></div></div>
+    <!-- Edit Group Modals -->
+    {{range .Config.Groups}}
+    <div class="modal fade" id="editGroupModal-{{safeID .Name}}" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+        <form action="/group/update" method="POST">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{$csrf}}">
+            <input type="hidden" name="original_name" value="{{.Name}}">
+            <div class="modal-header"><h5 class="modal-title">Edit Group: {{.Name}}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-3"><label class="form-label">Group Name</label><input type="text" name="name" class="form-control" value="{{.Name}}" required></div>
+                <div class="mb-3"><label class="form-label">Client IPs (comma-separated)</label><input type="text" name="client_ips" class="form-control" value="{{join .ClientIPs ","}}"></div>
+                <div class="mb-3"><label class="form-label">Client Hosts (comma-separated)</label><input type="text" name="client_hosts" class="form-control" value="{{join .ClientHosts ","}}"></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save Changes</button></div>
+        </form>
+    </div></div></div>
+    {{end}}
+{{end}}
+
+{{define "proxyModals"}}
+    {{$csrf := .CSRFToken}}
+    <!-- Add Proxy Modal -->
+    <div class="modal fade" id="addProxyModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+        <form action="/proxy/add" method="POST">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{$csrf}}">
+            <div class="modal-header"><h5 class="modal-title">Add New Proxy</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-3"><label class="form-label">Proxy Name</label><input type="text" name="name" class="form-control" required></div>
+                <div class="mb-3"><label class="form-label">Type</label>
+                    <select name="type" class="form-select">
+                        <option value="http">HTTP</option><option value="socks5">SOCKS5</option><option value="udp">UDP</option><option value="mdns-reflector">mDNS Reflector</option>
+                    </select>
+                </div>
+                <div class="mb-3"><label class="form-label">Listen Address</label><input type="text" name="listen_address" class="form-control" placeholder="e.g., :8080 or 127.0.0.1:1080" required></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Add Proxy</button></div>
+        </form>
+    </div></div></div>
+    <!-- Edit Proxy Modals -->
+    {{range .Config.Proxies}}
+     <div class="modal fade" id="editProxyModal-{{safeID .Name}}" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+        <form action="/proxy/update" method="POST">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{$csrf}}">
+            <input type="hidden" name="original_name" value="{{.Name}}">
+            <div class="modal-header"><h5 class="modal-title">Edit Proxy: {{.Name}}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-3"><label class="form-label">Proxy Name</label><input type="text" name="name" class="form-control" value="{{.Name}}" required></div>
+                <div class="mb-3"><label class="form-label">Listen Address</label><input type="text" name="listen_address" class="form-control" value="{{.ListenAddress}}"></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save Changes</button></div>
+        </form>
+    </div></div></div>
+    {{end}}
+{{end}}
+
+{{define "policyModals"}}
+    {{$csrf := .CSRFToken}}
+    {{$allGroups := .Config.Groups}}
+    {{range $proxy := .Config.Proxies}}
+        <!-- Add Policy Modal -->
+        <div class="modal fade" id="addPolicyModal-{{safeID $proxy.Name}}" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+            <form action="/policy/add" method="POST">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$csrf}}">
+                <input type="hidden" name="proxy_name" value="{{$proxy.Name}}">
+                <div class="modal-header"><h5 class="modal-title">Add New Policy to {{$proxy.Name}}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3"><label class="form-label">Policy Name</label><input type="text" name="name" class="form-control" required></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Action</label><select name="action" class="form-select"><option value="allow">Allow</option><option value="deny">Deny</option></select></div>
+                    </div>
+                    <hr><h6>Conditions</h6>
+                    <div class="mb-3"><label class="form-label">Client Groups (select one or more)</label><select name="client_groups" class="form-select" multiple>{{range $group := $allGroups}}<option value="{{$group.Name}}">{{$group.Name}}</option>{{end}}</select></div>
+                    <div class="mb-3"><label class="form-label">Destination Hosts (comma-separated)</label><input type="text" name="dest_hosts" class="form-control" placeholder="e.g., *.google.com,netflix.com"></div>
+                    <div class="mb-3"><label class="form-label">Destination Ports (comma-separated)</label><input type="text" name="dest_ports" class="form-control" placeholder="e.g., 80,443,8080"></div>
+                    <div class="mb-3"><label class="form-label d-block">Days of Week</label>{{range $day := (list "Sunday" "Monday" "Tuesday" "Wednesday" "Thursday" "Friday" "Saturday")}}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="days_of_week" value="{{$day}}" id="day-add-{{safeID $proxy.Name}}-{{$day}}"><label class="form-check-label" for="day-add-{{safeID $proxy.Name}}-{{$day}}">{{slice $day 0 3}}</label></div>{{end}}</div>
+                    <div class="mb-3"><label class="form-label">Time of Day Range (UTC)</label><div class="input-group"><span class="input-group-text">From</span><input type="time" name="start_time" class="form-control"><span class="input-group-text">To</span><input type="time" name="end_time" class="form-control"></div></div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Add Policy</button></div>
+            </form>
+        </div></div></div>
+
+        <!-- Edit Policy Modals -->
+        {{range $policy := $proxy.Policies}}
+        <div class="modal fade" id="editPolicyModal-{{safeID $proxy.Name}}-{{safeID $policy.Name}}" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+            <form action="/policy/update" method="POST">
+                <input type="hidden" name="gorilla.csrf.Token" value="{{$csrf}}">
+                <input type="hidden" name="proxy_name" value="{{$proxy.Name}}">
+                <input type="hidden" name="original_name" value="{{$policy.Name}}">
+                <div class="modal-header"><h5 class="modal-title">Edit Policy: {{$policy.Name}}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3"><label class="form-label">Policy Name</label><input type="text" name="name" class="form-control" value="{{$policy.Name}}" required></div>
+                        <div class="col-md-6 mb-3"><label class="form-label">Action</label><select name="action" class="form-select"><option value="allow" {{if eq $policy.Action "allow"}}selected{{end}}>Allow</option><option value="deny" {{if eq $policy.Action "deny"}}selected{{end}}>Deny</option></select></div>
+                    </div>
+                     <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" name="disabled" id="disabledSwitch-{{safeID $proxy.Name}}-{{safeID $policy.Name}}" {{if $policy.Disabled}}checked{{end}}><label class="form-check-label" for="disabledSwitch-{{safeID $proxy.Name}}-{{safeID $policy.Name}}">Policy is Disabled</label></div>
+                    <hr><h6>Conditions</h6>
+                    <div class="mb-3"><label class="form-label">Client Groups (select one or more)</label><select name="client_groups" class="form-select" multiple>{{$policyGroups := $policy.Conditions.ClientGroups}}{{range $group := $allGroups}}<option value="{{$group.Name}}"{{range $pg := $policyGroups}}{{if eq $pg $group.Name}} selected{{end}}{{end}}>{{$group.Name}}</option>{{end}}</select></div>
+                    <div class="mb-3"><label class="form-label">Destination Hosts (comma-separated)</label><input type="text" name="dest_hosts" class="form-control" value="{{join $policy.Conditions.DestHosts ","}}"></div>
+                    <div class="mb-3"><label class="form-label">Destination Ports (comma-separated)</label><input type="text" name="dest_ports" class="form-control" value="{{join $policy.Conditions.DestPorts ","}}"></div>
+                    <div class="mb-3"><label class="form-label d-block">Days of Week</label>{{$policyDays := $policy.Conditions.DaysOfWeek}}{{range $day := (list "Sunday" "Monday" "Tuesday" "Wednesday" "Thursday" "Friday" "Saturday")}}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="days_of_week" value="{{$day}}" id="day-edit-{{safeID $proxy.Name}}-{{safeID $policy.Name}}-{{$day}}"{{range $pd := $policyDays}}{{if eq $pd $day}} checked{{end}}{{end}}><label class="form-check-label" for="day-edit-{{safeID $proxy.Name}}-{{safeID $policy.Name}}-{{$day}}">{{slice $day 0 3}}</label></div>{{end}}</div>
+                    <div class="mb-3"><label class="form-label">Time of Day Range (UTC)</label><div class="input-group"><span class="input-group-text">From</span><input type="time" name="start_time" class="form-control" value="{{index (split $policy.Conditions.TimeOfDay "-") 0}}"><span class="input-group-text">To</span><input type="time" name="end_time" class="form-control" value="{{index (split $policy.Conditions.TimeOfDay "-") 1}}"></div></div>
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save Changes</button></div>
+            </form>
+        </div></div></div>
+        {{end}}
+    {{end}}
+{{end}}
+
+{{define "authModals"}}
+    {{$csrf := .CSRFToken}}
+    {{range $proxy := .Config.Proxies}}
+    <div class="modal fade" id="addUserModal-{{safeID $proxy.Name}}" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+        <form action="/auth/user/add" method="POST">
+            <input type="hidden" name="gorilla.csrf.Token" value="{{$csrf}}">
+            <input type="hidden" name="proxy_name" value="{{$proxy.Name}}">
+            <div class="modal-header"><h5 class="modal-title">Add User to {{$proxy.Name}}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-3"><label class="form-label">Username</label><input type="text" name="username" class="form-control" required></div>
+                <div class="mb-3"><label class="form-label">Password</label><input type="password" name="password" class="form-control" required></div>
+            </div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Add User</button></div>
+        </form>
+    </div></div></div>
+    {{end}}
+{{end}}
+
+</html>

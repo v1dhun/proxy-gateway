@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Proxy Gateway</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* A slightly darker background to match the dashboard's feel */
+        body {
+            background-color: #212529;
+        }
+    </style>
+</head>
+<body class="d-flex align-items-center justify-content-center vh-100">
+
+    <div class="card shadow-lg border-secondary" style="width: 25rem;">
+        <div class="card-body p-5">
+            <div class="text-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" fill="currentColor" class="bi bi-shield-lock" viewBox="0 0 16 16">
+                    <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.06.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.952-.325-1.99-.636-2.837-.855C9.536 1.23,8.757 1,8 1s-1.536.23-2.662.59zM8 2c.666.248 1.425.564 2.25.84C11.972 3.444 13 6.227 12.553 9.818c-1.125 1.626-2.094 2.58-2.673 2.973-.12.084-.205.13-.255.158a.487.487 0 0 1-.15.033.487.487 0 0 1-.15-.033c-.05-.028-.135-.074-.255-.158-.579-.393-1.548-1.347-2.673-2.973C3 6.227 4.028 3.444 5.75 2.84c.825-.276 1.584-.592 2.25-.84z"/>
+                    <path d="M9.5 6.5a1.5 1.5 0 0 1-1 1.415l.385 1.965a.5.5 0 0 1-.491.585h-.788a.5.5 0 0 1-.49-.585l.385-1.965a1.5 1.5 0 1 1 2-1.415z"/>
+                </svg>
+            </div>
+            <h1 class="card-title text-center h3 mb-3">Proxy Gateway</h1>
+            <p class="card-text text-center text-muted mb-4">
+                Please sign in to access the dashboard.
+            </p>
+            <div class="d-grid">
+                <a href="/login" class="btn btn-primary btn-lg">
+                    Sign In with SSO Provider
+                </a>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

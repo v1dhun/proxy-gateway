@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - Proxy Gateway</title>
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #212529;
+        }
+    </style>
+</head>
+<body class="d-flex align-items-center justify-content-center vh-100 text-center">
+    <div>
+        <h1 class="display-1 fw-bold">{{.StatusCode}}</h1>
+        <p class="fs-3">
+            <span class="text-danger">Oops!</span> {{.Title}}
+        </p>
+        <p class="lead">{{.Message}}</p>
+        <hr class="my-4">
+
+        {{/* Conditionally render buttons based on login status */}}
+        {{if .OIDCEnabled}}
+            {{if .IsLoggedIn}}
+                <a href="/" class="btn btn-primary me-2">Go to Dashboard</a>
+                <form action="/logout" method="POST" class="d-inline">
+                    <input type="hidden" name="gorilla.csrf.Token" value="{{ .CSRFToken }}">
+                    <button type="submit" class="btn btn-outline-secondary">Logout and Sign In Again</button>
+                </form>
+            {{else}}
+                 <a href="/login-page" class="btn btn-primary">Go to Login Page</a>
+            {{end}}
+        {{else}}
+            {{/* If OIDC is disabled, there's no login, just the dashboard */}}
+            <a href="/" class="btn btn-primary">Go to Dashboard</a>
+        {{end}}
+
+    </div>
+</body>
+</html>

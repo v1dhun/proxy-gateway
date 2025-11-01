@@ -1,0 +1,146 @@
+# -----------------------------------------------------------------------------
+# Global Settings for the Proxy Gateway Daemon
+# -----------------------------------------------------------------------------
+log_level: "info" # Options: "debug", "info", "warn", "error"
+
+# The address for the web UI. Use ":443" for  with TLS.
+web_address: "127.0.0.1:8081"
+
+# Path to the SQLite database for web UI sessions.
+# If not specified, defaults to "sessions.db" in the current directory.
+# This makes user sessions persistent across gateway restarts.
+session_db_path: "sessions.db"
+
+# -----------------------------------------------------------------------------
+# TLS Configuration - CHOOSE ONE METHOD (ACME or Self-Signed)
+# -----------------------------------------------------------------------------
+
+# --- Method 1: Automatic Certificate via ACME (Let's Encrypt or Self-Hosted) ---
+# tls:
+#   enabled: true
+#   domain: "my-gateway.public-domain.com"
+#   email: "your-email@public-domain.com"
+#   cache_dir: "/var/lib/proxy-gateway/certs"
+#   # --- Optional: For Self-Hosted ACME ---
+#   # directory_url: "https://step-ca.internal.corp/acme/acme/directory"
+#   # root_ca: "/etc/proxy-gateway/certs/root_ca.pem"
+
+# --- Method 2: Automatic Self-Signed Certificate ---
+# Use this for local development or testing.
+# Your browser will show a security warning which you must accept.
+# self_signed:
+#   enabled: true
+#   cert_path: "server.crt"
+#   key_path: "server.key"
+#   # Hostnames the certificate will be valid for.
+#   hostnames:
+#     - "localhost"
+#     - "127.0.0.1"
+
+# A list of allowed origins for CSRF protection on the web UI.
+# If using any form of TLS, this MUST be your HTTPS origin.
+trusted_origins:
+  - "http://127.0.0.1:8081"
+  # - "https://localhost:8443"
+
+# -----------------------------------------------------------------------------
+# OIDC Configuration for Web UI Authentication
+# -----------------------------------------------------------------------------
+oidc:
+  enabled: true # Set to false to disable OIDC login and make the dashboard public.
+  issuer: "https://your-oidc-provider.com/"
+  client_id: "your-client-id"
+  client_secret: "your-client-secret"
+  # This URL must match a valid callback URL in your OIDC provider settings.
+  # If using TLS, this must be an https:// URL.
+  redirect_url: "http://127.0.0.1:8081/auth/callback"
+
+# -----------------------------------------------------------------------------
+# Web UI Access Control
+# -----------------------------------------------------------------------------
+# If OIDC is enabled, you can restrict access to a specific list of emails.
+# If this list is empty or not present, any authenticated user will be allowed.
+# allowed_emails:
+#   - "admin@example.com"
+#   - "user2@example.com"
+
+# -----------------------------------------------------------------------------
+# Global DNS Engine Configuration
+# -----------------------------------------------------------------------------
+dns:
+  # Upstream DNS servers to forward queries to.
+  upstream_servers:
+    - "1.1.1.1:53"
+    - "8.8.8.8:53"
+  # Strategy for selecting an upstream server: "round_robin", "random", "fastest".
+  upstream_server_strategy: "round_robin"
+  # Timeout for upstream DNS queries.
+  query_timeout: "2s"
+  # A list of hostnames/domains to block. Wildcards (*) are supported.
+  blocked_hosts:
+    - "*.doubleclick.net"
+  # A map of custom DNS records for internal hosts.
+  custom_records:
+    "gateway.internal": "192.168.1.1"
+
+# -----------------------------------------------------------------------------
+# Client Groups
+# Used in policies to group clients by IP or hostname.
+# -----------------------------------------------------------------------------
+groups:
+  - name: "trusted-devices"
+    client_ips:
+      - "192.168.1.100/32"
+      - "192.168.1.101/32"
+    client_hosts:
+      - "laptop.local"
+
+# -----------------------------------------------------------------------------
+# Proxy Definitions
+# -----------------------------------------------------------------------------
+proxies:
+  # --- HTTP Proxy Example ---
+  - name: "Standard_HTTP_Proxy"
+    enabled: true
+    type: "http"
+    listen_address: "0.0.0.0:8080"
+    policies:
+      - name: "Allow_Trusted_Devices"
+        action: "allow"
+        conditions:
+          client_groups: ["trusted-devices"]
+
+  # --- SOCKS5 Proxy with Argon2 Authentication ---
+  # To generate a password hash, run: ./hash-password
+  # - name: "Secure_SOCKS5_Gateway"
+  #   enabled: true
+  #   type: "socks5"
+  #   listen_address: "0.0.0.0:1080"
+  #   auth:
+  #     enabled: true # Set to false to allow access without a password, even if users are defined.
+  #     users:
+  #       - username: "myuser"
+  #         password: "$argon2id$v=19$m=65536,t=1,p=4$b2PdhQYL0o78xq0nJ07g0w$zp6+FLec+r6tUCSOGlpXVd7GZF3m1LNIlJ+aV657UNc"
+  #   policies:
+  #     - name: "Allow_All_Authenticated"
+  #       action: "allow"
+  #       conditions: {} # Empty conditions match all traffic
+
+  # --- Stateful UDP Proxy Example (e.g., for a game server or DNS) ---
+  # - name: "DNS_Forwarder"
+  #   enabled: true
+  #   type: "udp"
+  #   listen_address: "0.0.0.0:5300"
+  #   forward_to_address: "1.1.1.1:53"
+  #   policies:
+  #     - name: "Allow_Internal_Network"
+  #       action: "allow"
+  #       conditions:
+  #         client_ips: ["192.168.1.0/24"]
+
+  # --- mDNS Reflector Example (for cross-VLAN service discovery) ---
+  # - name: "Cross-Subnet_mDNS"
+  #   enabled: true
+  #   type: "mdns-reflector"
+  #   # Requires at least two network interface names.
+  #   interfaces: ["eth0", "eth1"]
