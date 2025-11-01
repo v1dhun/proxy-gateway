@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	// NEW IMPORTS
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
